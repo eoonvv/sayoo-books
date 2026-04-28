@@ -370,10 +370,10 @@ function BookDetail({ book, onClose, onRequest, autoShowForm, onAddToCart }) {
   const prevPhoto = () => setActivePhoto(i=>(i-1+total)%total);
   const nextPhoto = () => setActivePhoto(i=>(i+1)%total);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!form.name.trim()||!form.contact.trim()) return;
-    onRequest({ ...form, bookId:book.id, bookTitle:book.title });
-    setSubmitted(true);
+    const ok = await onRequest({ ...form, bookId:book.id, bookTitle:book.title });
+    if (ok) setSubmitted(true);
   };
   const inp = { width:"100%", padding:"10px 12px", border:"1px solid var(--border-default)", borderRadius:"var(--radius)", fontSize:14, fontFamily:"var(--sans)", background:"var(--fill-default)", outline:"none" };
 
@@ -1161,14 +1161,22 @@ function App() {
 
   // 단건 신청 (BookDetail)
   const handleRequest = async (data) => {
-    const { error } = await db.from('requests').insert([{
+    const { error: insertError } = await db.from('requests').insert([{
       book_id: data.bookId, book_title: data.bookTitle,
       name: data.name, contact: data.contact, message: data.message || '', status: 'new'
     }]);
-    if (!error) {
-      await db.from('books').update({ status: 'reserved' }).eq('id', data.bookId);
+    if (insertError) {
+      console.error('신청 저장 실패:', insertError);
+      alert('신청 중 오류가 발생했습니다. 다시 시도해 주세요.');
+      return false;
+    }
+    const { error: updateError } = await db.from('books').update({ status: 'reserved' }).eq('id', data.bookId);
+    if (updateError) {
+      console.error('책 상태 업데이트 실패:', updateError);
+    } else {
       setBooks(prev => prev.map(b => b.id === data.bookId ? { ...b, status: 'reserved' } : b));
     }
+    return true;
   };
 
   // 장바구니 일괄 신청
